@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Skaner</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>body{font-family:sans-serif;text-align:center;padding:40px 16px;background:var(--tg-theme-bg-color,#fff);color:var(--tg-theme-text-color,#000)}
+button{font-size:20px;padding:14px 28px;border-radius:12px;border:0;background:var(--tg-theme-button-color,#2a8);color:var(--tg-theme-button-text-color,#fff)}</style>
+</head><body>
+<p id="m">📷 Kamera ochilmoqda…</p>
+<button id="b" onclick="skan()">📷 Qayta skanerlash</button>
+<script>
+const tg = window.Telegram && Telegram.WebApp;
+function skan(){
+  if(!tg || !tg.showScanQrPopup){document.getElementById('m').textContent='Telegram ilovasini yangilang (faqat telefonda ishlaydi).';return;}
+  tg.showScanQrPopup({text:"Polka yoki rulon QR kodiga qarating"}, function(t){
+    if(!t) return false;
+    tg.closeScanQrPopup();
+    tg.sendData(String(t).slice(0,4000));   // botga yuboradi va oynani yopadi
+    return true;
+  });
+}
+if(tg){tg.ready();tg.expand();}
+skan();
+</script></body></html>
