@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Har qanday USB printer (klass 7) -->
+    <usb-device class="7" />
+    <!-- Canon -->
+    <usb-device vendor-id="1193" />
+</resources>

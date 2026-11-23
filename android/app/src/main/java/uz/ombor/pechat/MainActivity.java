@@ -1,0 +1,331 @@
+package uz.ombor.pechat;
+
+import android.Manifest;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Typeface;
+import android.hardware.usb.UsbDevice;
+import android.net.Uri;
+import android.net.nsd.NsdManager;
+import android.net.nsd.NsdServiceInfo;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.CancellationSignal;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.ParcelFileDescriptor;
+import android.os.PowerManager;
+import android.print.PageRange;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintDocumentInfo;
+import android.print.PrintManager;
+import android.provider.Settings;
+import android.text.InputType;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import org.json.JSONObject;
+
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+public class MainActivity extends Activity {
+    private TextView holat, jurnal;
+    private EditText token, yorliq, a4, canonIp;
+    private final Handler h = new Handler(Looper.getMainLooper());
+    private NsdManager.DiscoveryListener qidiruv;
+
+    private final Runnable yangila = new Runnable() {
+        @Override
+        public void run() {
+            holatniYoz();
+            h.postDelayed(this, 1000);
+        }
+    };
+
+    @Override
+    protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        int pad = dp(14);
+        LinearLayout l = new LinearLayout(this);
+        l.setOrientation(LinearLayout.VERTICAL);
+        l.setPadding(pad, pad, pad, pad);
+
+        holat = new TextView(this);
+        holat.setTextSize(17);
+        holat.setTypeface(Typeface.DEFAULT_BOLD);
+        l.addView(holat);
+
+        SharedPreferences sp = Jurnal.sozlama(this);
+        l.addView(sarlavha("1. Pechat bot tokeni (@ombor_pechat_bot)"));
+        token = maydon(sp.getString("token", ""), "123456:ABC…");
+        token.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        l.addView(token);
+        l.addView(sarlavha("2. Yorliq printeri nomi (botdagi; odatda kirim)"));
+        yorliq = maydon(sp.getString("yorliq", "kirim"), "kirim");
+        l.addView(yorliq);
+        l.addView(sarlavha("A4 printer nomi (botdagi; odatda a4)"));
+        a4 = maydon(sp.getString("a4", "a4"), "a4");
+        l.addView(a4);
+        l.addView(sarlavha("Canon IP manzili (Wi-Fi; «Canon'ni qidirish» o'zi topadi)"));
+        canonIp = maydon(sp.getString("canon_ip", ""), "192.168.1.50");
+        l.addView(canonIp);
+
+        l.addView(tugma("▶️ SAQLASH VA ISHGA TUSHIRISH", v -> {
+            saqla();
+            sp.edit().putBoolean("yoqilgan", true).apply();
+            ruxsatlar();
+            PechatService.boshla(this);
+            Jurnal.yoz("Xizmat ishga tushirildi");
+        }));
+        l.addView(tugma("⏹ To'xtatish", v -> {
+            sp.edit().putBoolean("yoqilgan", false).apply();
+            PechatService.toxtat(this);
+        }));
+        l.addView(tugma("🏷 Xprinter sinov yorlig'i", v -> fonda(() -> {
+            try {
+                Jurnal.yoz("Sinov yorlig'i yuborildi: " + Chop.yorliq(this, Chop.SINOV_TSPL));
+            } catch (Exception e) {
+                Jurnal.yoz("Xprinter sinov: " + e.getMessage());
+            }
+        })));
+        l.addView(tugma("📄 Canon sinov varag'i (A4)", v -> {
+            saqla();
+            fonda(() -> {
+                try {
+                    Jurnal.yoz("A4 sinov yuborildi: " + Chop.a4(this, new JSONObject(Chop.SINOV_A4), 1));
+                } catch (Exception e) {
+                    Jurnal.yoz("Canon sinov: " + e.getMessage());
+                }
+            });
+        }));
+        l.addView(tugma("🔎 Canon'ni Wi-Fi'dan qidirish", v -> canonQidir()));
+        l.addView(tugma("🖨 Oxirgi A4 ni qo'lda chop etish (telefon oynasi)", v -> qolda()));
+        l.addView(tugma("🔋 Batareya cheklovini o'chirish (fonda uxlamasin)", v -> batareya()));
+
+        l.addView(sarlavha("Jurnal"));
+        jurnal = new TextView(this);
+        jurnal.setTextSize(12);
+        jurnal.setTypeface(Typeface.MONOSPACE);
+        l.addView(jurnal);
+
+        ScrollView sv = new ScrollView(this);
+        sv.addView(l);
+        setContentView(sv);
+        usbIntent(getIntent());
+        if (sp.getBoolean("yoqilgan", false) && !Jurnal.token(this).isEmpty() && !PechatService.ishlayapti) {
+            PechatService.boshla(this);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        usbIntent(i);
+    }
+
+    private void usbIntent(Intent i) {
+        if (i != null && "android.hardware.usb.action.USB_DEVICE_ATTACHED".equals(i.getAction())) {
+            Jurnal.yoz("USB printer ulandi");
+            if (Jurnal.sozlama(this).getBoolean("yoqilgan", false) && !Jurnal.token(this).isEmpty()) {
+                PechatService.boshla(this);
+            }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        h.post(yangila);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        h.removeCallbacks(yangila);
+    }
+
+    private void holatniYoz() {
+        StringBuilder s = new StringBuilder();
+        s.append(PechatService.ishlayapti ? "🟢 " : "🔴 ").append(Jurnal.holat).append('\n');
+        int n = 0;
+        for (Map.Entry<String, UsbDevice> e : UsbPrinter.um(this).getDeviceList().entrySet()) {
+            UsbDevice d = e.getValue();
+            boolean c = UsbPrinter.canonmi(d);
+            s.append("🔌 ").append(UsbPrinter.nom(d)).append(c ? " (Canon, A4)" : " (yorliq)");
+            if (!UsbPrinter.um(this).hasPermission(d)) s.append(" — ruxsat yo'q");
+            if (c && UsbPrinter.ippUsbInterfeys(d) == null) s.append(" — USB'da drayversiz emas, Wi-Fi kerak");
+            s.append('\n');
+            n++;
+        }
+        if (n == 0) s.append("🔌 USB printer ulanmagan\n");
+        if (!Jurnal.canonIp(this).isEmpty()) s.append("📶 Canon Wi-Fi: ").append(Jurnal.canonIp(this)).append('\n');
+        holat.setText(s.toString().trim());
+        jurnal.setText(Jurnal.matn());
+    }
+
+    private void saqla() {
+        Jurnal.sozlama(this).edit()
+                .putString("token", token.getText().toString().trim())
+                .putString("yorliq", yorliq.getText().toString().trim())
+                .putString("a4", a4.getText().toString().trim().isEmpty() ? "a4" : a4.getText().toString().trim())
+                .putString("canon_ip", canonIp.getText().toString().trim())
+                .apply();
+        // Ulangan USB printerlarga ruxsat so'raymiz
+        for (UsbDevice d : UsbPrinter.um(this).getDeviceList().values()) UsbPrinter.ruxsat(this, d);
+        Toast.makeText(this, "Saqlandi", Toast.LENGTH_SHORT).show();
+    }
+
+    private void ruxsatlar() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != 0) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+        }
+    }
+
+    private void batareya() {
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm.isIgnoringBatteryOptimizations(getPackageName())) {
+            Toast.makeText(this, "Allaqachon o'chirilgan ✓", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+        }
+    }
+
+    private void canonQidir() {
+        NsdManager nsd = (NsdManager) getSystemService(Context.NSD_SERVICE);
+        if (qidiruv != null) {
+            try { nsd.stopServiceDiscovery(qidiruv); } catch (Exception ignored) {}
+        }
+        Jurnal.yoz("Wi-Fi'da printer qidirilmoqda… (telefon va Canon bitta Wi-Fi'da bo'lsin)");
+        final boolean[] topildi = {false};
+        qidiruv = new NsdManager.DiscoveryListener() {
+            @Override public void onStartDiscoveryFailed(String t, int e) { Jurnal.yoz("Qidiruv boshlanmadi: " + e); }
+            @Override public void onStopDiscoveryFailed(String t, int e) {}
+            @Override public void onDiscoveryStarted(String t) {}
+            @Override public void onDiscoveryStopped(String t) {}
+            @Override public void onServiceLost(NsdServiceInfo s) {}
+
+            @Override
+            public void onServiceFound(NsdServiceInfo s) {
+                Jurnal.yoz("Topildi: " + s.getServiceName());
+                synchronized (topildi) {
+                    if (topildi[0]) return;
+                    if (!s.getServiceName().toLowerCase().contains("canon")) return;
+                    topildi[0] = true;
+                }
+                nsd.resolveService(s, new NsdManager.ResolveListener() {
+                    @Override
+                    public void onResolveFailed(NsdServiceInfo si, int e) {
+                        Jurnal.yoz("Manzil aniqlanmadi: " + e);
+                        synchronized (topildi) { topildi[0] = false; }
+                    }
+
+                    @Override
+                    public void onServiceResolved(NsdServiceInfo si) {
+                        String ip = si.getHost().getHostAddress();
+                        String rp = "ipp/print";
+                        byte[] r = si.getAttributes().get("rp");
+                        if (r != null && r.length > 0) rp = new String(r, StandardCharsets.UTF_8);
+                        Jurnal.sozlama(MainActivity.this).edit().putString("canon_ip", ip)
+                                .putInt("canon_port", si.getPort()).putString("canon_yol", "/" + rp).apply();
+                        Jurnal.yoz("✅ Canon: " + ip + ":" + si.getPort() + "/" + rp + " — saqlandi");
+                        h.post(() -> canonIp.setText(ip));
+                        try { nsd.stopServiceDiscovery(qidiruv); } catch (Exception ignored) {}
+                    }
+                });
+            }
+        };
+        nsd.discoverServices("_ipp._tcp", NsdManager.PROTOCOL_DNS_SD, qidiruv);
+        h.postDelayed(() -> {
+            synchronized (topildi) {
+                if (!topildi[0]) Jurnal.yoz("Canon topilmadi. Canon Wi-Fi'ga ulanganmi? IP'ni qo'lda yozsa ham bo'ladi.");
+            }
+        }, 15000);
+    }
+
+    /** Telefonning o'z chop etish oynasi (masalan Canon PRINT / Mopria plagini orqali). */
+    private void qolda() {
+        JSONObject job;
+        try { job = Chop.oxirgiA4Oqi(this); } catch (Exception e) { job = null; }
+        if (job == null) {
+            try { job = new JSONObject(Chop.SINOV_A4); } catch (Exception e) { return; }
+            Toast.makeText(this, "Hali A4 hujjat kelmagan — sinov varag'i ochiladi", Toast.LENGTH_LONG).show();
+        }
+        final byte[] pdf;
+        try { pdf = Raster.pdf(job, Math.max(1, job.optInt("nusxa", 1))); } catch (Exception e) {
+            Jurnal.yoz("PDF tayyorlanmadi: " + e.getMessage());
+            return;
+        }
+        boolean land = Raster.sahifa(job)[2] > 0;
+        PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
+        PrintAttributes at = new PrintAttributes.Builder()
+                .setMediaSize(land ? PrintAttributes.MediaSize.ISO_A4.asLandscape() : PrintAttributes.MediaSize.ISO_A4)
+                .build();
+        pm.print(job.optString("nom", "Hujjat"), new PrintDocumentAdapter() {
+            @Override
+            public void onLayout(PrintAttributes o, PrintAttributes n, CancellationSignal cs, LayoutResultCallback cb, Bundle ex) {
+                cb.onLayoutFinished(new PrintDocumentInfo.Builder("hujjat.pdf")
+                        .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).build(), true);
+            }
+
+            @Override
+            public void onWrite(PageRange[] pages, ParcelFileDescriptor fd, CancellationSignal cs, WriteResultCallback cb) {
+                try (FileOutputStream o = new FileOutputStream(fd.getFileDescriptor())) {
+                    o.write(pdf);
+                    cb.onWriteFinished(new PageRange[]{PageRange.ALL_PAGES});
+                } catch (Exception e) {
+                    cb.onWriteFailed(e.getMessage());
+                }
+            }
+        }, at);
+    }
+
+    private void fonda(Runnable r) {
+        new Thread(r).start();
+    }
+
+    private int dp(int x) {
+        return Math.round(x * getResources().getDisplayMetrics().density);
+    }
+
+    private TextView sarlavha(String s) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setPadding(0, dp(12), 0, dp(2));
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        return t;
+    }
+
+    private EditText maydon(String v, String hint) {
+        EditText e = new EditText(this);
+        e.setSingleLine(true);
+        e.setText(v);
+        e.setHint(hint);
+        return e;
+    }
+
+    private Button tugma(String s, View.OnClickListener cl) {
+        Button b = new Button(this);
+        b.setText(s);
+        b.setAllCaps(false);
+        b.setOnClickListener(cl);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(6);
+        b.setLayoutParams(lp);
+        return b;
+    }
+}
