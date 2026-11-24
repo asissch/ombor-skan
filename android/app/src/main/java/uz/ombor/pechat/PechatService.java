@@ -44,6 +44,7 @@ public class PechatService extends Service {
     private final ArrayDeque<Yorliq> navbat = new ArrayDeque<>();
     private final Set<String> bajarilgan = new HashSet<>();
     private volatile boolean toxta = false;
+    private long oxirgiTekshiruv = 0;
     private Thread oqim;
     private Tg tg;
     private PowerManager.WakeLock wl;
@@ -182,6 +183,10 @@ public class PechatService extends Service {
                     }
                 }
                 navbatniChopEt();
+                if (System.currentTimeMillis() - oxirgiTekshiruv > 6 * 3600 * 1000L) {
+                    oxirgiTekshiruv = System.currentTimeMillis();
+                    Yangilash.fondaTekshir(this);
+                }
             } catch (Tg.Ruxsatsiz e) {
                 Jurnal.holat = "Token noto'g'ri";
                 Jurnal.yoz(e.getMessage());

@@ -145,6 +145,7 @@ public class MainActivity extends Activity {
         l.addView(tugma("🔎 Canon'ni Wi-Fi'dan qidirish", v -> canonQidir()));
         l.addView(tugma("🖨 Oxirgi A4 ni qo'lda chop etish (telefon oynasi)", v -> qolda()));
         l.addView(tugma("🔋 Batareya cheklovini o'chirish (fonda uxlamasin)", v -> batareya()));
+        l.addView(tugma("⬆️ Yangilanishni tekshirish (hozir: " + Yangilash.joriyNom(this) + ")", v -> Yangilash.soradi(this, false)));
 
         l.addView(sarlavha("Jurnal"));
         jurnal = new TextView(this);
@@ -156,6 +157,7 @@ public class MainActivity extends Activity {
         sv.addView(l);
         setContentView(sv);
         usbIntent(getIntent());
+        Yangilash.soradi(this, !getIntent().getBooleanExtra("yangilash", false));
         if (sp.getBoolean("yoqilgan", false) && !Jurnal.token(this).isEmpty() && !PechatService.ishlayapti) {
             PechatService.boshla(this);
         }
@@ -168,6 +170,7 @@ public class MainActivity extends Activity {
     }
 
     private void usbIntent(Intent i) {
+        if (i != null && i.getBooleanExtra("yangilash", false) && i != getIntent()) Yangilash.soradi(this, false);
         if (i != null && "android.hardware.usb.action.USB_DEVICE_ATTACHED".equals(i.getAction())) {
             Jurnal.yoz("USB printer ulandi");
             if (Jurnal.sozlama(this).getBoolean("yoqilgan", false) && !Jurnal.token(this).isEmpty()) {

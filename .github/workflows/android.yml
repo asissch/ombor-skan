@@ -1,7 +1,7 @@
 name: Android APK
 on:
   push:
-    branches: [claude/project-thread-wgvak6, claude/project-thread-lpe30e]
+    branches: ['main', 'claude/**']
     paths: ['android/**', '.github/workflows/android.yml']
   workflow_dispatch:
 permissions:
@@ -33,3 +33,21 @@ jobs:
           git add apk/ombor-pechat.apk
           git commit -m "APK yig'ildi [skip ci]" || exit 0
           git push
+      - name: Publish update (GitHub release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CODE=$(grep -oP 'versionCode \K[0-9]+' android/app/build.gradle)
+          NAME=$(grep -oP "versionName '\K[^']+" android/app/build.gradle)
+          TAG="v${NAME}-${CODE}"
+          if gh release view "$TAG" >/dev/null 2>&1; then echo "release $TAG already exists"; exit 0; fi
+          cp apk/ombor-pechat.apk /tmp/ombor-pechat.apk
+          python3 - "$CODE" "$NAME" > /tmp/version.json <<'PY'
+          import json, sys, os
+          izoh = open("android/YANGILIK.txt", encoding="utf-8").read().strip() if os.path.exists("android/YANGILIK.txt") else ""
+          print(json.dumps({"versionCode": int(sys.argv[1]), "versionName": sys.argv[2],
+                            "apk": "https://github.com/${{ github.repository }}/releases/latest/download/ombor-pechat.apk",
+                            "izoh": izoh}, ensure_ascii=False))
+          PY
+          cat /tmp/version.json
+          gh release create "$TAG" /tmp/ombor-pechat.apk /tmp/version.json --title "Ombor Pechat $NAME" --notes-file android/YANGILIK.txt --latest --target "$GITHUB_SHA"
