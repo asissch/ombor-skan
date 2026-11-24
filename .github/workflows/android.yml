@@ -1,7 +1,7 @@
 name: Android APK
 on:
   push:
-    branches: [claude/project-thread-wgvak6]
+    branches: [claude/project-thread-wgvak6, claude/project-thread-lpe30e]
     paths: ['android/**', '.github/workflows/android.yml']
   workflow_dispatch:
 permissions:

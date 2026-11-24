@@ -25,7 +25,10 @@ import android.print.PrintDocumentInfo;
 import android.print.PrintManager;
 import android.provider.Settings;
 import android.text.InputType;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -41,7 +44,8 @@ import java.util.Map;
 
 public class MainActivity extends Activity {
     private TextView holat, jurnal;
-    private EditText token, yorliq, a4, canonIp;
+    private EditText token, yorliq, a4, canonIp, erkinMatn, erkinSon;
+    private ImageView erkinKor;
     private final Handler h = new Handler(Looper.getMainLooper());
     private NsdManager.DiscoveryListener qidiruv;
 
@@ -67,6 +71,35 @@ public class MainActivity extends Activity {
         l.addView(holat);
 
         SharedPreferences sp = Jurnal.sozlama(this);
+
+        // ✍ ERKIN YORLIQ — istalgan yozuvni Xprinter'ga (QR'siz)
+        l.addView(sarlavha("✍ ERKIN YORLIQ — istalgan yozuv (58x40)"));
+        erkinMatn = maydon(sp.getString("erkin", ""), "Masalan: 1607 (340)");
+        erkinMatn.setSingleLine(false);
+        erkinMatn.setMinLines(2);
+        erkinMatn.setTextSize(20);
+        l.addView(erkinMatn);
+        l.addView(sarlavha("Nechta chiqsin?"));
+        erkinSon = maydon("1", "1");
+        erkinSon.setInputType(InputType.TYPE_CLASS_NUMBER);
+        erkinSon.setTextSize(20);
+        l.addView(erkinSon);
+        erkinKor = new ImageView(this);
+        erkinKor.setAdjustViewBounds(true);
+        erkinKor.setBackgroundColor(0xFF888888);
+        erkinKor.setPadding(dp(2), dp(2), dp(2), dp(2));
+        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        ilp.topMargin = dp(8);
+        erkinKor.setLayoutParams(ilp);
+        l.addView(erkinKor);
+        erkinKor.setImageBitmap(Erkin.rasm(erkinMatn.getText().toString()));
+        erkinMatn.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence a, int b1, int c, int d) {}
+            @Override public void onTextChanged(CharSequence a, int b1, int c, int d) {}
+            @Override public void afterTextChanged(Editable e) { erkinKor.setImageBitmap(Erkin.rasm(e.toString())); }
+        });
+        l.addView(tugma("🖨 YORLIQNI CHOP ETISH", v -> erkinChop()));
+        l.addView(sarlavha(" "));
         l.addView(sarlavha("1. Pechat bot tokeni (@ombor_pechat_bot)"));
         token = maydon(sp.getString("token", ""), "123456:ABC…");
         token.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
@@ -292,6 +325,30 @@ public class MainActivity extends Activity {
                 }
             }
         }, at);
+    }
+
+    private void erkinChop() {
+        String m = erkinMatn.getText().toString().trim();
+        if (m.isEmpty()) {
+            Toast.makeText(this, "Avval yozuvni yozing", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        int n;
+        try { n = Integer.parseInt(erkinSon.getText().toString().trim()); } catch (Exception e) { n = 1; }
+        if (n < 1) n = 1;
+        if (n > 500) n = 500;
+        final int son = n;
+        Jurnal.sozlama(this).edit().putString("erkin", m).apply();
+        fonda(() -> {
+            try {
+                Chop.yorliq(this, Erkin.tspl(m, son));
+                Jurnal.yoz("✍ Erkin yorliq: «" + m.replace('\n', ' ') + "» × " + son);
+                h.post(() -> Toast.makeText(this, "✅ " + son + " ta yuborildi", Toast.LENGTH_SHORT).show());
+            } catch (Exception e) {
+                Jurnal.yoz("Erkin yorliq: " + e.getMessage());
+                h.post(() -> Toast.makeText(this, "❌ " + e.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        });
     }
 
     private void fonda(Runnable r) {
