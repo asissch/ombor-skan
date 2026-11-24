@@ -1,1 +1,1 @@
-• Qizil ogohlantirish aniqroq: bitta token ikki qurilmada ishlatilsa, «har qurilmaga alohida bot tokeni kerak» deydi.
+• Bot «qaysi printerlar ishlayapti?» deb so'rasa, telefon darhol javob beradi: botdagi ro'yxatda 🟢/🟡/🔴 ko'rinadi.

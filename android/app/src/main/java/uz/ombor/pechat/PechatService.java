@@ -272,6 +272,10 @@ public class PechatService extends Service {
         }
         String text = post.optString("text", "");
         Printerlar.kanalQoy(this, chat);
+        if (text.startsWith("#printer_sorov")) {            // bot: «qaysi printerlar ishlayapti?» — javob beramiz
+            if (!eski) elon();
+            return;
+        }
         if (text.startsWith("#printer ")) {                 // boshqa telefon printeri e'lon qildi
             String[] e = text.trim().split("\\s+");
             if (e.length >= 2) Printerlar.qosh(this, e[1]);
