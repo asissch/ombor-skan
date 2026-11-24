@@ -157,7 +157,7 @@ public class MainActivity extends Activity {
         }));
         l.addView(tugma("🏷 Xprinter sinov yorlig'i", v -> fonda(() -> {
             try {
-                Jurnal.yoz("Sinov yorlig'i yuborildi: " + Chop.yorliq(this, Chop.SINOV_TSPL));
+                Jurnal.yoz("Sinov yorlig'i yuborildi: " + Chop.yorliq(this, Erkin.tspl("SINOV\n" + soz.olcham() + " mm", 1, soz, false)));
             } catch (Exception e) {
                 Jurnal.yoz("Xprinter sinov: " + e.getMessage());
             }

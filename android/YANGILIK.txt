@@ -1,3 +1,2 @@
-• Yorliq chetidagi qora ramka olib tashlandi.
-• 🪪 Printer pasporti: QR va printer nomi chiqadi — printerga yopishtiring.
-• Bir nechta printer: chop etishda «Qaysi printerga?» deb so'raydi yoki pasportni skanerlaysiz. Yorliq o'sha printer ulangan telefondan chiqadi.
+• «Xprinter sinov yorlig'i» endi siz tanlagan qog'oz o'lchamida chiqadi (58x40 emas).
+• Printer nomi katta-kichik harfga qaramaydi (P1 = p1).

@@ -34,8 +34,8 @@ public final class Jurnal {
     }
 
     public static String token(Context c) { return sozlama(c).getString("token", "").trim(); }
-    public static String yorliqPrinter(Context c) { return sozlama(c).getString("yorliq", "kirim").trim(); }
-    public static String a4Printer(Context c) { return sozlama(c).getString("a4", "a4").trim(); }
+    public static String yorliqPrinter(Context c) { return sozlama(c).getString("yorliq", "kirim").trim().toLowerCase(Locale.ROOT); }
+    public static String a4Printer(Context c) { return sozlama(c).getString("a4", "a4").trim().toLowerCase(Locale.ROOT); }
     public static String canonIp(Context c) { return sozlama(c).getString("canon_ip", "").trim(); }
     public static int canonPort(Context c) { return sozlama(c).getInt("canon_port", 631); }
     public static String canonYol(Context c) { return sozlama(c).getString("canon_yol", "/ipp/print"); }

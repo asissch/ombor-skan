@@ -252,7 +252,7 @@ public class PechatService extends Service {
         JSONObject doc = post.optJSONObject("document");
         if (doc != null && cap.startsWith("#hujjat ")) {
             String[] hp = cap.trim().split("\\s+");
-            if (hp.length < 3 || !hp[1].equals(Jurnal.a4Printer(this)) || bajarilgan.contains(hp[2])) return;
+            if (hp.length < 3 || !hp[1].equalsIgnoreCase(Jurnal.a4Printer(this)) || bajarilgan.contains(hp[2])) return;
             if (eski) { Jurnal.yoz("Eski hujjat #" + hp[2] + " o'tkazib yuborildi"); return; }
             byte[] raw = tg.yukla(doc.getString("file_id"));
             try { raw = Ipp.oqi(new GZIPInputStream(new ByteArrayInputStream(raw))); } catch (Exception ignored) {}
@@ -293,7 +293,7 @@ public class PechatService extends Service {
         if (parts.length < 3) return;
         Printerlar.qosh(this, parts[1]);
         String yp = Jurnal.yorliqPrinter(this);
-        if (!yp.isEmpty() && !yp.equals("*") && !parts[1].equals(yp)) return;
+        if (!yp.isEmpty() && !yp.equals("*") && !parts[1].equalsIgnoreCase(yp)) return;
         String jid = parts[2];
         if (bajarilgan.contains(jid)) return;
         if (eski) { Jurnal.yoz("Eski yorliq #" + jid + " o'tkazib yuborildi"); return; }
