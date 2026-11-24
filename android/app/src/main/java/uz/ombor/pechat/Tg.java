@@ -48,6 +48,35 @@ public final class Tg {
         return b;
     }
 
+    /** Kanalga fayl (katta yorliq) yuborish. */
+    public void hujjat(long chat, String caption, String fname, byte[] data) throws Exception {
+        String bnd = "----ombor" + System.nanoTime();
+        HttpURLConnection c = (HttpURLConnection) new URL("https://api.telegram.org/bot" + token + "/sendDocument").openConnection();
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(60000);
+        c.setDoOutput(true);
+        c.setRequestMethod("POST");
+        c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + bnd);
+        java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream();
+        String[][] f = {{"chat_id", String.valueOf(chat)}, {"caption", caption}, {"disable_notification", "true"}};
+        for (String[] kv : f) {
+            b.write(("--" + bnd + "\r\nContent-Disposition: form-data; name=\"" + kv[0] + "\"\r\n\r\n" + kv[1] + "\r\n")
+                    .getBytes(StandardCharsets.UTF_8));
+        }
+        b.write(("--" + bnd + "\r\nContent-Disposition: form-data; name=\"document\"; filename=\"" + fname
+                + "\"\r\nContent-Type: application/octet-stream\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        b.write(data);
+        b.write(("\r\n--" + bnd + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        byte[] body = b.toByteArray();
+        c.setFixedLengthStreamingMode(body.length);
+        try (OutputStream o = c.getOutputStream()) { o.write(body); }
+        int code = c.getResponseCode();
+        String s = new String(Ipp.oqi(code < 400 ? c.getInputStream() : c.getErrorStream()), StandardCharsets.UTF_8);
+        c.disconnect();
+        JSONObject j = new JSONObject(s.isEmpty() ? "{}" : s);
+        if (!j.optBoolean("ok")) throw new IOException(j.optString("description", "Telegram xatosi " + code));
+    }
+
     public void yoz(long chat, String text) {
         try {
             call("sendMessage", new JSONObject().put("chat_id", chat).put("text", text).put("disable_notification", true), 20000);

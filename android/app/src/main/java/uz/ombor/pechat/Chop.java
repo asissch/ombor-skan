@@ -16,7 +16,6 @@ public final class Chop {
     private Chop() {}
 
     public static final byte[] SINOV_TSPL = ("SIZE 58 mm,40 mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1,0\r\nREFERENCE 0,0\r\nCLS\r\n"
-            + "BOX 2,2,461,317,2\r\n"
             + "QRCODE 16,16,M,5,A,0,\"SINOV\"\r\n"
             + "TEXT 180,20,\"3\",0,2,2,\"SINOV\"\r\n"
             + "TEXT 180,80,\"3\",0,1,1,\"Telefon ishlayapti\"\r\n"

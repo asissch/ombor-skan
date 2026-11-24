@@ -45,6 +45,26 @@ public class PechatService extends Service {
     private final Set<String> bajarilgan = new HashSet<>();
     private volatile boolean toxta = false;
     private long oxirgiTekshiruv = 0;
+    private long oxirgiElon = 0;
+    private Boolean oxirgiHolat = null;
+
+    /** Xprinter ulandi/uzildi — kanalga xabar (bot yorliqni shunga qarab telefonga yoki noutbukka yuboradi). */
+    private void holatXabar() {
+        boolean bor = UsbPrinter.yorliqPrinter(this) != null;
+        if (oxirgiHolat != null && oxirgiHolat == bor) return;
+        new Thread(this::elon).start();
+    }
+
+    /** Kanalga «shu printer ishlayapti» deb yozadi — boshqa telefonlar ro'yxatiga o'zi qo'shiladi. */
+    private void elon() {
+        long k = Printerlar.kanal(this);
+        if (k == 0 || tg == null) return;
+        oxirgiElon = System.currentTimeMillis();
+        boolean bor = UsbPrinter.yorliqPrinter(this) != null;
+        oxirgiHolat = bor;
+        tg.yoz(k, "#printer " + Printerlar.ozim(this) + (bor ? " ulandi — 📱 Xprinter telefonga ulangan"
+                : " uzildi — 📱 Xprinter telefonga ulanmagan (yorliqlar noutbukka ketadi)"));
+    }
     private Thread oqim;
     private Tg tg;
     private PowerManager.WakeLock wl;
@@ -57,8 +77,10 @@ public class PechatService extends Service {
             if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(a) || UsbPrinter.RUXSAT.equals(a)) {
                 Jurnal.yoz("USB: printer ulandi");
                 new Thread(PechatService.this::navbatniChopEt).start();
+                holatXabar();
             } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(a)) {
                 Jurnal.yoz("USB: printer uzildi");
+                holatXabar();
             }
             yangila();
         }
@@ -167,9 +189,10 @@ public class PechatService extends Service {
                     Jurnal.holat = "Ishlayapti (@" + me.optString("username") + ")";
                     Jurnal.yoz("Telegram'ga ulandi: @" + me.optString("username"));
                     ulangan = true;
+                    elon();
                     yangila();
                 }
-                JSONObject p = new JSONObject().put("timeout", 25).put("allowed_updates", new JSONArray().put("channel_post"));
+                JSONObject p = new JSONObject().put("timeout", 25).put("allowed_updates", new JSONArray().put("channel_post").put("my_chat_member"));
                 if (offset >= 0) p.put("offset", offset);
                 JSONArray up = (JSONArray) tg.call("getUpdates", p, 40000);
                 kut = 1;
@@ -177,12 +200,19 @@ public class PechatService extends Service {
                     JSONObject u = up.getJSONObject(i);
                     offset = u.getLong("update_id") + 1;
                     Jurnal.sozlama(this).edit().putLong("offset", offset).apply();
+                    JSONObject mcm = u.optJSONObject("my_chat_member");
+                    if (mcm != null && mcm.optJSONObject("chat") != null && "channel".equals(mcm.getJSONObject("chat").optString("type"))) {
+                        Printerlar.kanalQoy(this, mcm.getJSONObject("chat").getLong("id"));
+                        Jurnal.yoz("📡 Pechat kanali aniqlandi: " + mcm.getJSONObject("chat").optString("title"));
+                        elon();
+                    }
                     JSONObject post = u.optJSONObject("channel_post");
                     if (post != null) {
                         try { ishlov(post); } catch (Exception e) { Jurnal.yoz("Xato: " + e.getMessage()); }
                     }
                 }
                 navbatniChopEt();
+                if (System.currentTimeMillis() - oxirgiElon > 12 * 3600 * 1000L) elon();
                 if (System.currentTimeMillis() - oxirgiTekshiruv > 6 * 3600 * 1000L) {
                     oxirgiTekshiruv = System.currentTimeMillis();
                     Yangilash.fondaTekshir(this);
@@ -241,17 +271,35 @@ public class PechatService extends Service {
             return;
         }
         String text = post.optString("text", "");
-        if (!text.startsWith("#pechat ")) return;
-        int nl = text.indexOf('\n');
-        if (nl < 0) return;
-        String[] parts = text.substring(0, nl).trim().split("\\s+");
+        Printerlar.kanalQoy(this, chat);
+        if (text.startsWith("#printer ")) {                 // boshqa telefon printeri e'lon qildi
+            String[] e = text.trim().split("\\s+");
+            if (e.length >= 2) Printerlar.qosh(this, e[1]);
+            return;
+        }
+        if (text.startsWith("✅ #") && text.contains(" chop etildi (")) {   // boshqa printer javobi
+            int a = text.indexOf(" chop etildi (") + 14, b = text.indexOf(',', a);
+            if (b < 0) b = text.indexOf(')', a);
+            if (b > a) Printerlar.qosh(this, text.substring(a, b));
+            if (text.startsWith("✅ #T")) Jurnal.yoz(text);
+            return;
+        }
+        boolean fayl = doc != null && cap.startsWith("#pechat ");
+        String bosh;
+        if (fayl) bosh = cap.trim();
+        else if (text.startsWith("#pechat ") && text.indexOf('\n') > 0) bosh = text.substring(0, text.indexOf('\n')).trim();
+        else return;
+        String[] parts = bosh.split("\\s+");
         if (parts.length < 3) return;
+        Printerlar.qosh(this, parts[1]);
         String yp = Jurnal.yorliqPrinter(this);
         if (!yp.isEmpty() && !yp.equals("*") && !parts[1].equals(yp)) return;
         String jid = parts[2];
         if (bajarilgan.contains(jid)) return;
         if (eski) { Jurnal.yoz("Eski yorliq #" + jid + " o'tkazib yuborildi"); return; }
-        byte[] tspl = Base64.decode(text.substring(nl + 1).trim(), Base64.DEFAULT);
+        byte[] tspl = fayl ? tg.yukla(doc.getString("file_id"))
+                : Base64.decode(text.substring(text.indexOf('\n') + 1).trim(), Base64.DEFAULT);
+        Printerlar.botniOrgan(this, tspl);
         synchronized (navbat) { navbat.add(new Yorliq(jid, chat, tspl)); }
         navbatniChopEt();
     }

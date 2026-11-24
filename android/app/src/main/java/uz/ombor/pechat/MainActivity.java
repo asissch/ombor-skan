@@ -110,7 +110,6 @@ public class MainActivity extends Activity {
         q2.addView(kichik("↕️ +1mm", v -> { soz.yOff = Math.min(15, soz.yOff + 1); sozYangila(); }));
         l.addView(q2);
         LinearLayout q3 = qator();
-        q3.addView(kichik("🔲 Chegara sinovi", v -> erkinYubor("SINOV " + soz.olcham(), 1, true)));
         q3.addView(kichik("🎯 Kalibrlash", v -> fonda(() -> {
             try {
                 Chop.yorliq(this, Erkin.KALIBR);
@@ -127,12 +126,15 @@ public class MainActivity extends Activity {
             @Override public void afterTextChanged(Editable e) { erkinKor.setImageBitmap(Erkin.korinish(e.toString(), soz)); }
         });
         l.addView(tugma("🖨 YORLIQNI CHOP ETISH", v -> erkinChop()));
+        l.addView(tugma("🪪 Shu printerning pasportini chop etish (QR)", v -> pasportChop()));
+        l.addView(tugma("🖨 Printerlar ro'yxati / skanerlab qo'shish", v -> royxat()));
+        l.addView(tugma("🔗 Botdagi yorliqlarim shu telefondan chiqsin", v -> botgaUlash()));
         l.addView(sarlavha(" "));
         l.addView(sarlavha("1. Pechat bot tokeni (@ombor_pechat_bot)"));
         token = maydon(sp.getString("token", ""), "123456:ABC…");
         token.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         l.addView(token);
-        l.addView(sarlavha("2. Yorliq printeri nomi (botdagi; odatda kirim)"));
+        l.addView(sarlavha("2. Shu telefondagi printer nomi (har telefonda boshqa: kirim, ombor2 …)"));
         yorliq = maydon(sp.getString("yorliq", "kirim"), "kirim");
         l.addView(yorliq);
         l.addView(sarlavha("A4 printer nomi (botdagi; odatda a4)"));
@@ -375,17 +377,97 @@ public class MainActivity extends Activity {
 
     private void erkinYubor(String m, int son, boolean ramka) {
         final Erkin.Soz z = soz;
-        fonda(() -> {
+        tanla(nom -> fonda(() -> {
             try {
-                Chop.yorliq(this, Erkin.tspl(m, son, z, ramka));
-                Jurnal.yoz("✍ " + (ramka ? "Chegara sinovi" : "Erkin yorliq") + ": «" + m.replace('\n', ' ') + "» × " + son
-                        + " (" + z.olcham() + ")");
-                h.post(() -> Toast.makeText(this, "✅ " + son + " ta yuborildi", Toast.LENGTH_SHORT).show());
+                String nat = Printerlar.yubor(this, nom, Erkin.tspl(m, son, z, false));
+                Jurnal.yoz("✍ Erkin yorliq: «" + m.replace('\n', ' ') + "» × " + son + " (" + z.olcham() + ") → " + nat);
+                h.post(() -> Toast.makeText(this, "✅ " + son + " ta → " + nom, Toast.LENGTH_SHORT).show());
             } catch (Exception e) {
                 Jurnal.yoz("Erkin yorliq: " + e.getMessage());
                 h.post(() -> Toast.makeText(this, "❌ " + e.getMessage(), Toast.LENGTH_LONG).show());
             }
+        }));
+    }
+
+    /** Printer tanlash: bittadan ko'p bo'lsa ro'yxat + «📷 Printerni skanerlash». */
+    interface Tanlandi { void ok(String nom); }
+
+    private void tanla(Tanlandi t) {
+        java.util.List<String> l = Printerlar.hammasi(this);
+        if (l.size() <= 1) { t.ok(Printerlar.ozim(this)); return; }
+        String[] r = new String[l.size() + 1];
+        for (int i = 0; i < l.size(); i++) r[i] = "🖨 " + l.get(i) + (i == 0 ? "  (shu telefon)" : "");
+        r[l.size()] = "📷 Printerni skanerlang (pasportdagi QR)";
+        new AlertDialog.Builder(this).setTitle("Qaysi printerga?").setItems(r, (d, i) -> {
+            if (i < l.size()) t.ok(l.get(i));
+            else skanerla(nom -> { Printerlar.qosh(this, nom); t.ok(nom); });
+        }).setNegativeButton("Bekor", null).show();
+    }
+
+    private void skanerla(Tanlandi t) {
+        try {
+            com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions o =
+                    new com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
+                            .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE).build();
+            com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(this, o).startScan()
+                    .addOnSuccessListener(bc -> {
+                        String nom = Printerlar.pasportdan(bc.getRawValue());
+                        if (nom == null) {
+                            Toast.makeText(this, "Bu printer pasporti emas", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        Jurnal.yoz("📷 Printer skanerlandi: " + nom);
+                        t.ok(nom);
+                    })
+                    .addOnFailureListener(e -> Toast.makeText(this, "Skaner ochilmadi: " + e.getMessage()
+                            + ". Ro'yxatdan tanlang.", Toast.LENGTH_LONG).show());
+        } catch (Throwable e) {
+            Toast.makeText(this, "Bu telefonda skaner yo'q — ro'yxatdan tanlang", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void pasportChop() {
+        saqla();
+        final String nom = Printerlar.ozim(this);
+        final Erkin.Soz z = soz;
+        fonda(() -> {
+            try {
+                Chop.yorliq(this, Printerlar.pasport(this, nom, z));
+                Jurnal.yoz("🪪 Pasport chop etildi: " + nom + " · QR: " + Printerlar.pasportQr(this, nom));
+            } catch (Exception e) {
+                Jurnal.yoz("Pasport: " + e.getMessage());
+                h.post(() -> Toast.makeText(this, "❌ " + e.getMessage(), Toast.LENGTH_LONG).show());
+            }
         });
+    }
+
+    /** Botni «start=prn_<nom>» bilan ochadi: shu telefondagi xodimning yorliqlari shu printerga bog'lanadi. */
+    private void botgaUlash() {
+        saqla();
+        String b = Printerlar.botUser(this);
+        if (b.isEmpty()) {
+            new AlertDialog.Builder(this).setMessage("Bot nomi hali noma'lum. Botdan bitta yorliq chiqaring yoki "
+                    + "«🪪 pasport» ni chop etib, botdagi 📷 Skanerlash bilan skanerlang.").setPositiveButton("OK", null).show();
+            return;
+        }
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/" + b + "?start=prn_" + Printerlar.ozim(this))));
+        } catch (Exception e) {
+            Toast.makeText(this, "Telegram ochilmadi", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void royxat() {
+        java.util.List<String> l = Printerlar.hammasi(this);
+        String[] r = new String[l.size() + 1];
+        for (int i = 0; i < l.size(); i++) r[i] = "🖨 " + l.get(i) + (i == 0 ? "  (shu telefon)" : "  — o'chirish uchun bosing");
+        r[l.size()] = "📷 Skanerlab qo'shish";
+        new AlertDialog.Builder(this).setTitle("Printerlar").setItems(r, (d, i) -> {
+            if (i == l.size()) skanerla(nom -> { Printerlar.qosh(this, nom); Toast.makeText(this, "✅ " + nom, Toast.LENGTH_SHORT).show(); });
+            else if (i > 0) new AlertDialog.Builder(this).setMessage("«" + l.get(i) + "» ro'yxatdan o'chirilsinmi?")
+                    .setPositiveButton("O'chirish", (d2, w) -> Printerlar.ochir(this, l.get(i)))
+                    .setNegativeButton("Yo'q", null).show();
+        }).setNegativeButton("Yopish", null).show();
     }
 
     private void sozYangila() {

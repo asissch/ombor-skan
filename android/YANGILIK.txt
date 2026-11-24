@@ -1,3 +1,3 @@
-• Erkin yorliq: qog'oz o'lchamini tanlash (30x20 dan 80x80 gacha yoki o'zingiz yozasiz).
-• Gorizontal / vertikal yozuv.
-• Yozuv chetdan chiqsa — ↔️ ↕️ bilan 1 mm dan siljitish, «🔲 Chegara sinovi» va «🎯 Kalibrlash».
+• Yorliq chetidagi qora ramka olib tashlandi.
+• 🪪 Printer pasporti: QR va printer nomi chiqadi — printerga yopishtiring.
+• Bir nechta printer: chop etishda «Qaysi printerga?» deb so'raydi yoki pasportni skanerlaysiz. Yorliq o'sha printer ulangan telefondan chiqadi.
