@@ -46,6 +46,8 @@ public class MainActivity extends Activity {
     private TextView holat, jurnal;
     private EditText token, yorliq, a4, canonIp, erkinMatn, erkinSon;
     private ImageView erkinKor;
+    private TextView erkinSozMatn;
+    private Erkin.Soz soz;
     private final Handler h = new Handler(Looper.getMainLooper());
     private NsdManager.DiscoveryListener qidiruv;
 
@@ -73,7 +75,8 @@ public class MainActivity extends Activity {
         SharedPreferences sp = Jurnal.sozlama(this);
 
         // ✍ ERKIN YORLIQ — istalgan yozuvni Xprinter'ga (QR'siz)
-        l.addView(sarlavha("✍ ERKIN YORLIQ — istalgan yozuv (58x40)"));
+        soz = Erkin.Soz.oqi(this);
+        l.addView(sarlavha("✍ ERKIN YORLIQ — istalgan yozuv"));
         erkinMatn = maydon(sp.getString("erkin", ""), "Masalan: 1607 (340)");
         erkinMatn.setSingleLine(false);
         erkinMatn.setMinLines(2);
@@ -92,11 +95,36 @@ public class MainActivity extends Activity {
         ilp.topMargin = dp(8);
         erkinKor.setLayoutParams(ilp);
         l.addView(erkinKor);
-        erkinKor.setImageBitmap(Erkin.rasm(erkinMatn.getText().toString()));
+        erkinSozMatn = new TextView(this);
+        erkinSozMatn.setTextSize(15);
+        erkinSozMatn.setPadding(0, dp(6), 0, 0);
+        l.addView(erkinSozMatn);
+        LinearLayout q1 = qator();
+        q1.addView(kichik("📏 Qog'oz o'lchami", v -> olchamTanla()));
+        q1.addView(kichik("↔️ / ↕️ Yo'nalish", v -> { soz.vertikal = !soz.vertikal; sozYangila(); }));
+        l.addView(q1);
+        LinearLayout q2 = qator();
+        q2.addView(kichik("↔️ −1mm", v -> { soz.xOff = Math.max(-15, soz.xOff - 1); sozYangila(); }));
+        q2.addView(kichik("↔️ +1mm", v -> { soz.xOff = Math.min(15, soz.xOff + 1); sozYangila(); }));
+        q2.addView(kichik("↕️ −1mm", v -> { soz.yOff = Math.max(-15, soz.yOff - 1); sozYangila(); }));
+        q2.addView(kichik("↕️ +1mm", v -> { soz.yOff = Math.min(15, soz.yOff + 1); sozYangila(); }));
+        l.addView(q2);
+        LinearLayout q3 = qator();
+        q3.addView(kichik("🔲 Chegara sinovi", v -> erkinYubor("SINOV " + soz.olcham(), 1, true)));
+        q3.addView(kichik("🎯 Kalibrlash", v -> fonda(() -> {
+            try {
+                Chop.yorliq(this, Erkin.KALIBR);
+                Jurnal.yoz("🎯 Kalibrlash yuborildi (printer 1–3 bo'sh yorliq o'tkazadi)");
+            } catch (Exception e) {
+                Jurnal.yoz("Kalibrlash: " + e.getMessage());
+            }
+        })));
+        l.addView(q3);
+        sozYangila();
         erkinMatn.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence a, int b1, int c, int d) {}
             @Override public void onTextChanged(CharSequence a, int b1, int c, int d) {}
-            @Override public void afterTextChanged(Editable e) { erkinKor.setImageBitmap(Erkin.rasm(e.toString())); }
+            @Override public void afterTextChanged(Editable e) { erkinKor.setImageBitmap(Erkin.korinish(e.toString(), soz)); }
         });
         l.addView(tugma("🖨 YORLIQNI CHOP ETISH", v -> erkinChop()));
         l.addView(sarlavha(" "));
@@ -342,16 +370,74 @@ public class MainActivity extends Activity {
         if (n > 500) n = 500;
         final int son = n;
         Jurnal.sozlama(this).edit().putString("erkin", m).apply();
+        erkinYubor(m, son, false);
+    }
+
+    private void erkinYubor(String m, int son, boolean ramka) {
+        final Erkin.Soz z = soz;
         fonda(() -> {
             try {
-                Chop.yorliq(this, Erkin.tspl(m, son));
-                Jurnal.yoz("✍ Erkin yorliq: «" + m.replace('\n', ' ') + "» × " + son);
+                Chop.yorliq(this, Erkin.tspl(m, son, z, ramka));
+                Jurnal.yoz("✍ " + (ramka ? "Chegara sinovi" : "Erkin yorliq") + ": «" + m.replace('\n', ' ') + "» × " + son
+                        + " (" + z.olcham() + ")");
                 h.post(() -> Toast.makeText(this, "✅ " + son + " ta yuborildi", Toast.LENGTH_SHORT).show());
             } catch (Exception e) {
                 Jurnal.yoz("Erkin yorliq: " + e.getMessage());
                 h.post(() -> Toast.makeText(this, "❌ " + e.getMessage(), Toast.LENGTH_LONG).show());
             }
         });
+    }
+
+    private void sozYangila() {
+        soz.saqla(this);
+        erkinSozMatn.setText("📏 Qog'oz: " + soz.olcham() + " mm · " + (soz.vertikal ? "↕️ Vertikal" : "↔️ Gorizontal")
+                + " · siljish " + Erkin.fmt(soz.xOff) + "/" + Erkin.fmt(soz.yOff) + " mm");
+        erkinKor.setImageBitmap(Erkin.korinish(erkinMatn.getText().toString(), soz));
+    }
+
+    private void olchamTanla() {
+        String[] r = new String[Erkin.OLCHAMLAR.length + 1];
+        for (int i = 0; i < Erkin.OLCHAMLAR.length; i++) {
+            r[i] = (Erkin.OLCHAMLAR[i].equals(soz.olcham()) ? "✅ " : "") + Erkin.OLCHAMLAR[i] + " mm";
+        }
+        r[r.length - 1] = "✏️ Boshqa o'lcham (yozaman)";
+        new AlertDialog.Builder(this).setTitle("Yorliq o'lchami (eni x bo'yi)").setItems(r, (d, i) -> {
+            if (i < Erkin.OLCHAMLAR.length) {
+                float[] wh = Erkin.parse(Erkin.OLCHAMLAR[i]);
+                soz.w = wh[0];
+                soz.h = wh[1];
+                sozYangila();
+                return;
+            }
+            EditText e = maydon("", "60x40");
+            new AlertDialog.Builder(this).setTitle("O'lcham: ENI x BO'YI (mm)").setView(e)
+                    .setPositiveButton("OK", (d2, w) -> {
+                        float[] wh = Erkin.parse(e.getText().toString());
+                        if (wh == null) {
+                            Toast.makeText(this, "Masalan: 60x40", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        soz.w = wh[0];
+                        soz.h = wh[1];
+                        sozYangila();
+                    }).setNegativeButton("Bekor", null).show();
+        }).show();
+    }
+
+    private LinearLayout qator() {
+        LinearLayout q = new LinearLayout(this);
+        q.setOrientation(LinearLayout.HORIZONTAL);
+        return q;
+    }
+
+    private Button kichik(String s, View.OnClickListener cl) {
+        Button b = new Button(this);
+        b.setText(s);
+        b.setAllCaps(false);
+        b.setTextSize(13);
+        b.setOnClickListener(cl);
+        b.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        return b;
     }
 
     private void fonda(Runnable r) {
