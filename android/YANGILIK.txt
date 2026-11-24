@@ -1,2 +1,1 @@
-• «Xprinter sinov yorlig'i» endi siz tanlagan qog'oz o'lchamida chiqadi (58x40 emas).
-• Printer nomi katta-kichik harfga qaramaydi (P1 = p1).
+• Qizil ogohlantirish aniqroq: bitta token ikki qurilmada ishlatilsa, «har qurilmaga alohida bot tokeni kerak» deydi.

@@ -223,7 +223,7 @@ public class PechatService extends Service {
                 yangila();
                 uxla(60000);
             } catch (Tg.Konflikt e) {
-                Jurnal.holat = "Noutbuk agenti ham ishlayapti";
+                Jurnal.holat = "Bu token boshqa telefon yoki noutbukda ham ishlatilyapti — har qurilmaga alohida bot tokeni kerak";
                 Jurnal.yoz(e.getMessage());
                 yangila();
                 uxla(15000);

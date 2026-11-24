@@ -32,7 +32,7 @@ public final class Tg {
         String s = new String(Ipp.oqi(in), StandardCharsets.UTF_8);
         c.disconnect();
         if (code == 401 || code == 404) throw new Ruxsatsiz("Pechat bot tokeni noto'g'ri");
-        if (code == 409) throw new Konflikt("Bu token bilan boshqa dastur ham ishlayapti (noutbukdagi agentni yoping)");
+        if (code == 409) throw new Konflikt("Bu token bilan boshqa qurilma ham ishlayapti (boshqa telefon yoki noutbuk). Har qurilmaga alohida pechat boti oching");
         JSONObject j = new JSONObject(s.isEmpty() ? "{}" : s);
         if (!j.optBoolean("ok")) throw new IOException(j.optString("description", "Telegram xatosi " + code));
         return j.opt("result");
